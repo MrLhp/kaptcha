@@ -8,12 +8,13 @@ import org.captcha.utils.ImageUtils;
 import org.captcha.utils.OpenCVProcess;
 import org.junit.Test;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.stream.FileImageInputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toList;
@@ -54,20 +55,23 @@ public class App
         int count = 0;
         try {
             for (int i = 1; i <= 50; i++) {
-                DownloadFile.downloadFile(Constants.getValidUrl(),yzmPath+i+".png");
-                BufferedImage bufferedImage = ImageUtils.removeBackground(yzmPath + i + ".png");
-                ImageIO.write(bufferedImage,"png", new File(removebackgroundPath + i + ".png"));
-                OpenCVProcess.imgThreshold(removebackgroundPath + i + ".png",removebackgroundPath+i+".png");
-                ImageUtils.ImageProcessing(removebackgroundPath+i+".png",removeLinePointPath+i+".png");
-                List<BufferedImage> imageList = ImageUtils.splitImage(removeLinePointPath + i + ".png");
                 if (count == 100) {
-                    break;
+                    return;
                 }
+                DownloadFile.downloadFile(Constants.getValidUrl(),yzmPath+i+".jpeg");
+                BufferedImage bufferedImage = ImageUtils.removeBackground(yzmPath + i + ".jpeg");
+                ImageIO.write(bufferedImage,"jpeg", new File(removebackgroundPath + i + ".jpeg"));
+                OpenCVProcess.imgThreshold(removebackgroundPath + i + ".jpeg",removebackgroundPath+i+".jpeg");
+                ImageUtils.ImageProcessing(removebackgroundPath+i+".jpeg",removeLinePointPath+i+".jpeg");
+                List<BufferedImage> imageList = ImageUtils.splitImage(removeLinePointPath + i + ".jpeg");
+
                 if (imageList.size()<=4) {
                     for (int j = 1; j <= imageList.size(); j++) {
-                        File splitFile = new File(splitPath+"captcha.normal.exp" + i + "" + j + ".png");
-                        ImageIO.write(imageList.get(j-1),"png", splitFile);
-                        ImageUtils.png2Tif(splitFile);
+                        File splitFile = new File(splitPath + count + "_" + i + ".jpeg");
+                        ImageIO.write(imageList.get(j-1),"jpeg", splitFile);
+                        File tif = ImageUtils.png2Tif(splitFile);
+                        IIOImage img = new IIOImage(ImageIO.read(tif), null, null);
+                        ImageUtils.handleTIFFDpi(img.getRenderedImage(),tif.getAbsolutePath(),325);
                         count++;
                     }
                 }else{
@@ -86,12 +90,13 @@ public class App
 
     @Test
     public void test() {
-        List<File> fileList = Stream.of(new File("d:/tmp/yzm/split/").listFiles())
+        LinkedList<File> fileList = Stream.of(new File("d:/tmp/yzm/split/").listFiles())
                 .flatMap(file -> file.listFiles() == null ?
                         Stream.of(file) : Stream.of(file.listFiles())).filter(file -> file.getName().endsWith("tif"))
-                .collect(toList());
+                .collect(LinkedList::new,LinkedList::add,LinkedList::addAll);
         try {
-            System.out.println(ImageUtils.tif2Marge(fileList, new File("d:/tmp/yzm/merge/captcha.normal.exp2.tif")));
+            System.out.println(ImageUtils.tif2Marge(sortFileByName(fileList, "asc"),
+                    new File("d:/tmp/yzm/merge/captcha.normal.exp0.tif")));
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -103,12 +108,44 @@ public class App
         FileImageInputStream fis = null;
         TIFFImageReaderSpi tiffImageReaderSpi = new TIFFImageReaderSpi();
         TIFFImageReader tiffImageReader = new TIFFImageReader(tiffImageReaderSpi);
-        fis = new FileImageInputStream(new File("d:/tmp/yzm/merge/captcha.normal.exp1.tif"));
+        fis = new FileImageInputStream(new File("d:/tmp/yzm/merge/captcha.normal.exp0.tif"));
         tiffImageReader.setInput(fis);
         int numPages = tiffImageReader.getNumImages(true);
         for (int i = 0; i < numPages; i++) {
             BufferedImage bi = tiffImageReader.read(i);
-            System.out.println("0 0 0 "+bi.getWidth()+" "+bi.getHeight()+" "+i);
+            System.out.println(" 0 0 "+bi.getWidth()+" "+bi.getHeight()+" "+i);
         }
+    }
+
+
+    public static List<File> sortFileByName(List<File> files, final String orderStr) {
+        if (!orderStr.equalsIgnoreCase("asc") && orderStr.equalsIgnoreCase("desc")) {
+            return files;
+        }
+        File[] files1 = files.toArray(new File[0]);
+        Arrays.sort(files1, new Comparator<File>() {
+            public int compare(File o1, File o2) {
+                int n1 = extractNumber(o1.getName());
+                int n2 = extractNumber(o2.getName());
+                if(orderStr == null || orderStr.length() < 1 || orderStr.equalsIgnoreCase("asc")) {
+                    return n1 - n2;
+                } else {
+                    //降序
+                    return n2 - n1;
+                }
+            }
+        });
+        return new ArrayList<File>(Arrays.asList(files1));
+    }
+
+    private static int extractNumber(String name) {
+        int i;
+        try {
+            String number = name.replaceAll("[^\\d]", "");
+            i = Integer.parseInt(number);
+        } catch (Exception e) {
+            i = 0;
+        }
+        return i;
     }
 }

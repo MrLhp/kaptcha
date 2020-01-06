@@ -4,6 +4,13 @@ import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReader;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReaderSpi;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriterSpi;
+import com.github.jaiimageio.plugins.tiff.TIFFField;
+import com.github.jaiimageio.plugins.tiff.TIFFTag;
+import com.sun.image.codec.jpeg.JPEGCodec;
+import com.sun.image.codec.jpeg.JPEGEncodeParam;
+import com.sun.image.codec.jpeg.JPEGImageEncoder;
+import com.sun.media.jai.codec.TIFFEncodeParam;
+import com.sun.media.jai.codecimpl.TIFFImageEncoder;
 import lombok.extern.slf4j.Slf4j;
 
 import javax.imageio.IIOImage;
@@ -13,8 +20,10 @@ import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.FileImageOutputStream;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.RenderedImage;
 import java.io.File;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
@@ -388,7 +397,7 @@ public class ImageUtils {
     }
 
     public static File png2Tif(File file) throws FileNotFoundException, IOException {
-        File f2 = new File(file.getAbsolutePath().substring(0, file.getAbsolutePath().length() - 3) + "tif");
+        File f2 = new File(file.getAbsolutePath().substring(0, file.getAbsolutePath().length() - 4) + "tif");
         try {
             BufferedImage bufferedImage = ImageIO.read(file);
             BufferedImage newBufferedImage = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(),
@@ -560,6 +569,50 @@ public class ImageUtils {
 
 
         return bres;
+    }
+
+    /**
+     * 设置图片DPI
+     * @param file 图片源文件路径
+     * @param xDensity
+     * @param yDensity
+     */
+    public static void handleJPEGDpi(File file, int xDensity, int yDensity) {
+        try {
+            BufferedImage image = ImageIO.read(file);
+            JPEGImageEncoder jpegEncoder = JPEGCodec.createJPEGEncoder(new FileOutputStream(file));
+            JPEGEncodeParam jpegEncodeParam = jpegEncoder.getDefaultJPEGEncodeParam(image);
+            jpegEncodeParam.setDensityUnit(JPEGEncodeParam.DENSITY_UNIT_DOTS_INCH);
+            jpegEncoder.setJPEGEncodeParam(jpegEncodeParam);
+            jpegEncodeParam.setQuality(0.75f, false);
+            jpegEncodeParam.setXDensity(xDensity);
+            jpegEncodeParam.setYDensity(yDensity);
+            jpegEncoder.encode(image, jpegEncodeParam);
+            image.flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    public static void handleTIFFDpi(RenderedImage image, String outputFilePath, int dpi) {
+        try {
+            if (image != null) {
+                TIFFEncodeParam param = new TIFFEncodeParam();
+                param.setCompression(TIFFEncodeParam.COMPRESSION_NONE);
+                com.sun.media.jai.codec.TIFFField[] extras = new com.sun.media.jai.codec.TIFFField[2];
+                extras[0] = new com.sun.media.jai.codec.TIFFField(282, TIFFTag.TIFF_RATIONAL, 1, (Object) new long[][]{{(long) dpi, 1}, {0, 0}});
+                extras[1] = new com.sun.media.jai.codec.TIFFField(283, TIFFTag.TIFF_RATIONAL, 1, (Object) new long[][]{{(long) dpi, 1}, {0, 0}});
+                param.setExtraFields(extras);
+                File outputFile = new File(outputFilePath);
+                outputFile.createNewFile();
+                FileOutputStream outputStream = new FileOutputStream(outputFile);
+                TIFFImageEncoder encoder = new TIFFImageEncoder(outputStream, param);
+                encoder.encode(image);
+                outputStream.close();
+            }
+        } catch (IOException ex) {
+            ex.printStackTrace();
+        }
     }
 
     private static Integer[] array = {0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,

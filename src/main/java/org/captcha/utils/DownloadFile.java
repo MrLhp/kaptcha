@@ -14,11 +14,11 @@ public class DownloadFile {
         try {
             HttpGet httpget = new HttpGet(url);
 
-            System.out.println("Executing request " + httpget.getRequestLine());
+            //System.out.println("Executing request " + httpget.getRequestLine());
             CloseableHttpResponse response = SessionManager.getHttpClient().execute(httpget,SessionManager.getHttpClientContext());
             try {
-                System.out.println("----------------------------------------");
-                System.out.println(response.getStatusLine());
+                //System.out.println("----------------------------------------");
+                //System.out.println(response.getStatusLine());
 
                 // Get hold of the response entity
                 HttpEntity entity = response.getEntity();
