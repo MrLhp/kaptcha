@@ -2,8 +2,6 @@ package org.captcha;
 
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReader;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReaderSpi;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
-import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriterSpi;
 import lombok.extern.slf4j.Slf4j;
 import org.captcha.utils.DownloadFile;
 import org.captcha.utils.ImageUtils;
@@ -12,7 +10,6 @@ import org.junit.Test;
 
 import javax.imageio.ImageIO;
 import javax.imageio.stream.FileImageInputStream;
-import javax.imageio.stream.FileImageOutputStream;
 import java.awt.image.BufferedImage;
 import java.io.File;
 import java.io.IOException;
@@ -33,6 +30,7 @@ public class App
         String removebackgroundPath = "d:\\tmp\\yzm\\removebackground\\";
         String removeLinePointPath = "d:\\tmp\\yzm\\removeLinePoint\\";
         String splitPath = "d:\\tmp\\yzm\\split\\";
+        String mergePath = "d:\\tmp\\yzm\\merge\\";
         File file = new File(yzmPath);
         if (!file.exists()) {
             file.mkdir();
@@ -49,6 +47,10 @@ public class App
         if (!file.exists()) {
             file.mkdir();
         }
+        file = new File(mergePath);
+        if (!file.exists()) {
+            file.mkdir();
+        }
         int count = 0;
         try {
             for (int i = 1; i <= 50; i++) {
@@ -58,14 +60,14 @@ public class App
                 OpenCVProcess.imgThreshold(removebackgroundPath + i + ".png",removebackgroundPath+i+".png");
                 ImageUtils.ImageProcessing(removebackgroundPath+i+".png",removeLinePointPath+i+".png");
                 List<BufferedImage> imageList = ImageUtils.splitImage(removeLinePointPath + i + ".png");
-                if (count == 12) {
+                if (count == 100) {
                     break;
                 }
                 if (imageList.size()<=4) {
                     for (int j = 1; j <= imageList.size(); j++) {
                         File splitFile = new File(splitPath+"captcha.normal.exp" + i + "" + j + ".png");
                         ImageIO.write(imageList.get(j-1),"png", splitFile);
-                        // ImageUtils.png2Tif(splitFile);
+                        ImageUtils.png2Tif(splitFile);
                         count++;
                     }
                 }else{
@@ -86,15 +88,13 @@ public class App
     public void test() {
         List<File> fileList = Stream.of(new File("d:/tmp/yzm/split/").listFiles())
                 .flatMap(file -> file.listFiles() == null ?
-                        Stream.of(file) : Stream.of(file.listFiles()))
+                        Stream.of(file) : Stream.of(file.listFiles())).filter(file -> file.getName().endsWith("tif"))
                 .collect(toList());
         try {
-            ImageUtils.tif2Marge(fileList, new File("d:/tmp/yzm/merge/captcha.normal.exp1.tif"));
+            System.out.println(ImageUtils.tif2Marge(fileList, new File("d:/tmp/yzm/merge/captcha.normal.exp2.tif")));
         } catch (IOException e) {
             e.printStackTrace();
         }
-
-        File file = new File("/path/to/tiff");
     }
 
 

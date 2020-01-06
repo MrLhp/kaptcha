@@ -400,7 +400,7 @@ public class ImageUtils {
                         + "tif exist");
             } else {
                 //删除原有的png图片
-                file.delete();
+                // file.delete();
             }
         } catch (IOException e) {
             e.printStackTrace();
