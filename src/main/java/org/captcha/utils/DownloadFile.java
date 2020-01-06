@@ -11,7 +11,6 @@ import java.io.*;
 @Slf4j
 public class DownloadFile {
     public static void downloadFile(String url, String localPath) throws IOException {
-        DownloadFile.log.info("文件下载路径【{}】",localPath);
         try {
             HttpGet httpget = new HttpGet(url);
 

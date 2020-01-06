@@ -1,13 +1,25 @@
 package org.captcha.utils;
 
+import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReader;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReaderSpi;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriter;
+import com.github.jaiimageio.impl.plugins.tiff.TIFFImageWriterSpi;
+import lombok.extern.slf4j.Slf4j;
+
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.stream.FileImageInputStream;
+import javax.imageio.stream.FileImageOutputStream;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+@Slf4j
 public class ImageUtils {
     private static int whiteThreshold = 300;
 
@@ -176,6 +188,7 @@ public class ImageUtils {
 
     /**
      * 二值化
+     *
      * @param gray
      * @param w
      * @param h
@@ -234,7 +247,7 @@ public class ImageUtils {
 
     public static BufferedImage Xihua(BufferedImage image, Integer[] array) {
         if (array == null) {
-            array=ImageUtils.array;
+            array = ImageUtils.array;
         }
         int num = 10;
         BufferedImage iXihua = image;
@@ -333,7 +346,15 @@ public class ImageUtils {
         return image;
     }
 
-    public static java.util.List<BufferedImage> splitImage(BufferedImage img) throws Exception {
+    /**
+     * 验证码分割
+     *
+     * @param sourcePath 图片文件路径
+     * @return
+     * @throws Exception
+     */
+    public static java.util.List<BufferedImage> splitImage(String sourcePath) throws Exception {
+        BufferedImage img = ImageIO.read(new File(sourcePath));
         final java.util.List<BufferedImage> subImgs = new ArrayList<BufferedImage>();
         final int width = img.getWidth();
         final int height = img.getHeight();
@@ -349,7 +370,7 @@ public class ImageUtils {
         }
         for (int i = 0; i < weightlist.size(); i++) {
             int length = 0;
-            while (i < weightlist.size() && weightlist.get(i) > 0 || (i+1<weightlist.size()&&weightlist.get(i+1)>0)) {
+            while (i < weightlist.size() && weightlist.get(i) > 1 || (i + 1 < weightlist.size() && weightlist.get(i + 1) > 0) || (i + 2 < weightlist.size() && weightlist.get(i + 2) > 0)) {
                 i++;
                 length++;
             }
@@ -364,6 +385,181 @@ public class ImageUtils {
         }
 
         return subImgs;
+    }
+
+    public static File png2Tif(File file) throws FileNotFoundException, IOException {
+        File f2 = new File(file.getAbsolutePath().substring(0, file.getAbsolutePath().length() - 3) + "tif");
+        try {
+            BufferedImage bufferedImage = ImageIO.read(file);
+            BufferedImage newBufferedImage = new BufferedImage(bufferedImage.getWidth(), bufferedImage.getHeight(),
+                    BufferedImage.TYPE_BYTE_BINARY);//TYPE_BYTE_BINARY 压缩大小为原来的 24分之一
+            newBufferedImage.createGraphics().drawImage(bufferedImage, 0, 0, null);
+            boolean rn = ImageIO.write(newBufferedImage, "tiff", f2);
+            if (!rn) {
+                ImageUtils.log.warn("warn:" + file.getAbsolutePath().substring(0, file.getAbsolutePath().length() - 3)
+                        + "tif exist");
+            } else {
+                //删除原有的png图片
+                file.delete();
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        return f2;
+    }
+
+    /**
+     * 使用ImageIO 合并tiff文件
+     * jai-imageio-core-1.3.1.jar下载页面
+     * https://bintray.com/jai-imageio/maven/jai-imageio-core-standalone/1.3.1
+     * 参考
+     * jai-imageio-core
+     *https://github.com/jai-imageio/jai-imageio-core
+     * tif,tiff图片的合并与拆分
+     * https://blog.csdn.net/qq13398600329/article/details/80491325
+     * ImageBuffer 生成tif 代码报空，tif 压缩
+     * https://blog.csdn.net/u014510302/article/details/50234599
+     * 利用ImageIO压缩图片
+     * https://blog.csdn.net/thewindkee/article/details/52693371
+     * @param fileList tiff文件集合
+     * @param descFile 目标输出路径
+     * @return
+     * @throws IOException
+     */
+    public static String tif2Marge(List<File> fileList, File descFile) throws IOException {
+
+        boolean bres = true;
+        //tiff格式的图片读取器;
+        TIFFImageReader tiffImageReader = new TIFFImageReader(new TIFFImageReaderSpi());
+        FileImageInputStream fis = null;
+
+        List<BufferedImage> biList = new ArrayList<BufferedImage>();
+
+        for (File f : fileList) {
+            String fileName = f.getName();
+
+            if (!fileName.endsWith(".tif")) {
+                continue;
+            }
+
+            String key = fileName.replace(".tif", "");
+            try {
+                fis = new FileImageInputStream(f);
+                tiffImageReader.setInput(fis);
+
+                biList.add(tiffImageReader.read(0));
+            } catch (Exception e) {
+                e.printStackTrace();
+            } finally {
+                if (tiffImageReader != null) {
+                    tiffImageReader.dispose();
+                }
+                if (fis != null) {
+                    try {
+                        fis.flush();
+                        fis.close();
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
+                }
+                f.delete();
+
+            }
+        }
+        //tiff格式图片输出流
+        TIFFImageWriter tiffImageWriter = new TIFFImageWriter(new TIFFImageWriterSpi());
+        //使用  CCITT T.6  进行压缩  压缩大小为原来的 十分之一
+        ImageWriteParam writerParams = tiffImageWriter.getDefaultWriteParam();
+        writerParams.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+        writerParams.setCompressionType("CCITT T.6");
+        writerParams.setCompressionQuality(0.5f);
+
+        try {
+
+            //先指定一个文件用于存储输出的数据
+            tiffImageWriter.setOutput(new FileImageOutputStream(descFile));
+            //指定第一个tif文件写到指定的文件中
+            BufferedImage bufferedImage_0 = biList.get(0);
+            //IIOImage类是用于存储    图片/缩略图/元数据信息    的引用类
+            IIOImage iioImage_0 = new IIOImage(bufferedImage_0, null, null);
+            //write方法,将给定的IIOImage对象写到文件系统中;
+            tiffImageWriter.write(null, iioImage_0, writerParams);
+            for (int i = 1; i < biList.size(); i++) {
+                //判断该输出流是否可以插入新图片到文件系统中的
+                if (tiffImageWriter.canInsertImage(i)) {
+                    //根据顺序获取缓冲中的图片;
+                    BufferedImage bufferedImage = biList.get(i);
+                    IIOImage iioImage = new IIOImage(bufferedImage, null, null);
+                    //将文件插入到输出的多图片文件中的指定的下标处
+                    tiffImageWriter.writeInsert(i, iioImage, writerParams);
+                }
+            }
+            bres = true;
+        } catch (IOException e) {
+            e.printStackTrace();
+            bres = false;
+        } finally {
+            return descFile.getCanonicalPath() + "|" + (Math.round(descFile.length() / 10)) / 100.0;
+        }
+    }
+
+    /**
+     * 从一个分页的tiff文件中拆分各页,并从0开始命名每一页
+     * @param fTiff 源tiff文件
+     * @param decDir
+     *            tiff目标路径,目标文件将会以0001.tif,0002.tif...置于此路径下
+     * @return true表示成功,false表示失败
+     */
+    public static boolean makeSingleTif(File fTiff, File decDir) {
+        boolean bres = true;
+        FileImageInputStream fis = null;
+        try {
+            //java1.8的ImageIO不支持原文中以"TIFF"名字获取ImageReader,具体原因是
+            //ImageReaderSpi中有一个注册器,会先在内存中注册各个名称的读取器,而这个注册器恰好没有TIFF格式的
+            //所以需要jai-imageio-1.1.jar提供TIFFImageReader;
+            TIFFImageReaderSpi tiffImageReaderSpi = new TIFFImageReaderSpi();
+            TIFFImageReader tiffImageReader = new TIFFImageReader(tiffImageReaderSpi);
+
+            fis = new FileImageInputStream(fTiff);
+            tiffImageReader.setInput(fis);
+
+            int numPages = tiffImageReader.getNumImages(true);
+            for (int i = 0; i < numPages; i++) {
+
+                BufferedImage bi = tiffImageReader.read(i);
+
+                File tif = new File(decDir.getPath() + File.separator
+                        + String.format("" + i) + ".tif");
+// 此处我注销了原文中的写Tiff文件的方法其原因是如果采用此方法会导致个别图片拆不出来,所以改用ImageWriter,个人推测是因为原文采用的方式涉及到图片的每个像素
+//                bres = createTiff(tif,new RenderedImage[]{bi},dpiData,false);
+                //TIFFImageWriter与reader是同样的原理;
+                FileImageOutputStream fios = new FileImageOutputStream(tif);
+                TIFFImageWriterSpi tiffImageWriterSpi = new TIFFImageWriterSpi();
+                TIFFImageWriter tiffImageWriter = new TIFFImageWriter(tiffImageWriterSpi);
+                tiffImageWriter.setOutput(fios);
+
+                tiffImageWriter.write(bi);
+            }
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            bres = false;
+
+        } finally {
+
+            if (fis != null) {
+                try {
+                    fis.flush();
+                    fis.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+        }
+
+
+        return bres;
     }
 
     private static Integer[] array = {0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 0, 1, 1, 1, 0, 1,
