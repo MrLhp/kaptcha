@@ -3,6 +3,7 @@ package org.captcha;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReader;
 import com.github.jaiimageio.impl.plugins.tiff.TIFFImageReaderSpi;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.RandomUtils;
 import org.captcha.utils.DownloadFile;
 import org.captcha.utils.ImageUtils;
 import org.captcha.utils.OpenCVProcess;
@@ -26,12 +27,13 @@ import static java.util.stream.Collectors.toList;
 @Slf4j
 public class App 
 {
-    public static void main(String[] args) {
-        String yzmPath = "d:\\tmp\\yzm\\";
-        String removebackgroundPath = "d:\\tmp\\yzm\\removebackground\\";
-        String removeLinePointPath = "d:\\tmp\\yzm\\removeLinePoint\\";
-        String splitPath = "d:\\tmp\\yzm\\split\\";
-        String mergePath = "d:\\tmp\\yzm\\merge\\";
+    static String yzmPath = "d:\\tmp\\yzm\\";
+    static String removebackgroundPath = "d:\\tmp\\yzm\\removebackground\\";
+    static String removeLinePointPath = "d:\\tmp\\yzm\\removeLinePoint\\";
+    static String splitPath = "d:\\tmp\\yzm\\split\\";
+    static String mergePath = "d:\\tmp\\yzm\\merge\\";
+
+    private static void folderMkdir() {
         File file = new File(yzmPath);
         if (!file.exists()) {
             file.mkdir();
@@ -52,6 +54,9 @@ public class App
         if (!file.exists()) {
             file.mkdir();
         }
+    }
+    public static void main(String[] args) {
+        folderMkdir();
         int count = 0;
         try {
             for (int i = 1; i <= 50; i++) {
@@ -71,7 +76,7 @@ public class App
                         ImageIO.write(imageList.get(j-1),"jpeg", splitFile);
                         File tif = ImageUtils.png2Tif(splitFile);
                         IIOImage img = new IIOImage(ImageIO.read(tif), null, null);
-                        ImageUtils.handleTIFFDpi(img.getRenderedImage(),tif.getAbsolutePath(),325);
+                        ImageUtils.handleTIFFDpi(img.getRenderedImage(),tif.getAbsolutePath(),300);
                         count++;
                     }
                 }else{
@@ -94,12 +99,9 @@ public class App
                 .flatMap(file -> file.listFiles() == null ?
                         Stream.of(file) : Stream.of(file.listFiles())).filter(file -> file.getName().endsWith("tif"))
                 .collect(LinkedList::new,LinkedList::add,LinkedList::addAll);
-        try {
-            System.out.println(ImageUtils.tif2Marge(sortFileByName(fileList, "asc"),
-                    new File("d:/tmp/yzm/merge/captcha.normal.exp0.tif")));
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+
+        ImageUtils.tif2Marge(sortFileByName(fileList, "asc"),
+                new File("d:/tmp/yzm/merge/captcha.normal.exp0.tif"),300,300);
     }
 
 
@@ -113,7 +115,7 @@ public class App
         int numPages = tiffImageReader.getNumImages(true);
         for (int i = 0; i < numPages; i++) {
             BufferedImage bi = tiffImageReader.read(i);
-            System.out.println(" 0 0 "+bi.getWidth()+" "+bi.getHeight()+" "+i);
+            System.out.println(i+" 0 0 "+(bi.getWidth()-1)+" "+(bi.getHeight()-2)+" "+i);
         }
     }
 

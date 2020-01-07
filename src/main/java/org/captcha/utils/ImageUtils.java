@@ -9,23 +9,25 @@ import com.github.jaiimageio.plugins.tiff.TIFFTag;
 import com.sun.image.codec.jpeg.JPEGCodec;
 import com.sun.image.codec.jpeg.JPEGEncodeParam;
 import com.sun.image.codec.jpeg.JPEGImageEncoder;
-import com.sun.media.jai.codec.TIFFEncodeParam;
+import com.sun.media.jai.codec.*;
 import com.sun.media.jai.codecimpl.TIFFImageEncoder;
 import lombok.extern.slf4j.Slf4j;
+import org.junit.Test;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
 import javax.imageio.ImageWriteParam;
 import javax.imageio.stream.FileImageInputStream;
 import javax.imageio.stream.FileImageOutputStream;
+import javax.media.jai.NullOpImage;
+import javax.media.jai.OpImage;
+import javax.media.jai.PlanarImage;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.RenderedImage;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
-import java.io.IOException;
+import java.io.*;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @Slf4j
@@ -409,7 +411,7 @@ public class ImageUtils {
                         + "tif exist");
             } else {
                 //删除原有的png图片
-                // file.delete();
+                 file.delete();
             }
         } catch (IOException e) {
             e.printStackTrace();
@@ -418,7 +420,7 @@ public class ImageUtils {
     }
 
     /**
-     * 使用ImageIO 合并tiff文件
+     * 使用ImageIO 合并tiff文件  压缩dpi 为1  尚无解决方式
      * jai-imageio-core-1.3.1.jar下载页面
      * https://bintray.com/jai-imageio/maven/jai-imageio-core-standalone/1.3.1
      * 参考
@@ -471,7 +473,7 @@ public class ImageUtils {
                         e.printStackTrace();
                     }
                 }
-                f.delete();
+                //f.delete();
 
             }
         }
@@ -509,6 +511,45 @@ public class ImageUtils {
             bres = false;
         } finally {
             return descFile.getCanonicalPath() + "|" + (Math.round(descFile.length() / 10)) / 100.0;
+        }
+    }
+
+    public static void tif2Marge(List<File> fileList, File descFile,int dpiX,int dpiY) {
+        List<File> files = fileList;
+        int numImages = files.size();
+
+        List<BufferedImage> images = new ArrayList<BufferedImage>();
+        try {
+            for (int i = 0; i < numImages; i++) {
+                SeekableStream ss = new FileSeekableStream(files.get(i));
+                ImageDecoder decoder = ImageCodec.createImageDecoder("tiff", ss, null);
+
+                int numPages = decoder.getNumPages();
+                for (int j = 0; j < numPages; j++) {
+                    PlanarImage op = new NullOpImage(decoder.decodeAsRenderedImage(j), null, null, OpImage.OP_IO_BOUND);
+                    images.add(op.getAsBufferedImage());
+                }
+            }
+
+            TIFFEncodeParam params = new TIFFEncodeParam();
+            params.setCompression(TIFFEncodeParam.COMPRESSION_NONE);
+            com.sun.media.jai.codec.TIFFField[] extras = new com.sun.media.jai.codec.TIFFField[2];
+            extras[0] = new com.sun.media.jai.codec.TIFFField(282, TIFFTag.TIFF_RATIONAL, 1, (Object) new long[][]{{(long) dpiY, 1}, {0, 0}});
+            extras[1] = new com.sun.media.jai.codec.TIFFField(283, TIFFTag.TIFF_RATIONAL, 1, (Object) new long[][]{{(long) dpiX, 1}, {0, 0}});
+            params.setExtraFields(extras);
+            OutputStream out = new FileOutputStream(descFile);
+            ImageEncoder encoder = ImageCodec.createImageEncoder("tiff", out, params);
+            List<BufferedImage> imageList = new ArrayList<BufferedImage>();
+            for (int i = 1; i < images.size(); i++) {
+                imageList.add(images.get(i));
+            }
+            params.setExtraImages(imageList.iterator());
+            encoder.encode(images.get(0));
+            out.close();
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
         }
     }
 
